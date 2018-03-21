@@ -6,22 +6,30 @@ ENV WINEDEBUG -all,err+all
 
 # unfortunately we later need to wait on wineserver. Thus a small script for waiting is supplied.
 USER root
-COPY waitonprocess.sh /scripts/
-RUN chmod +x /scripts/waitonprocess.sh
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		cabextract \
+		xvfb
+ADD waitonprocess.sh /scripts/
+RUN chmod a+x /scripts/waitonprocess.sh
 
-# Install .NET Framework 4.0
+# Install Visual C++ Runtime 2013
 USER xclient
-RUN wine wineboot --init \
-		&& /scripts/waitonprocess.sh wineserver \
-		&& winetricks --unattended dotnet40 dotnet_verifier \
+RUN xvfb-run -a wine wineboot --init \
 		&& /scripts/waitonprocess.sh wineserver
-
-# Install Inno Setup binaries
-RUN mkdir /home/xclient/inno \
-		&& cd /home/xclient/inno \
-		&& curl -SL "http://www.jrsoftware.org/download.php/is.exe" -o is.exe \
-		&& wine is.exe /SILENT; exit 0  
+RUN xvfb-run -a winetricks --unattended vcrun2013\
+		&& /scripts/waitonprocess.sh wineserver
+RUN mkdir -p /home/xclient/zxpsign/bin
+RUN curl -SL "https://github.com/Adobe-CEP/CEP-Resources/raw/master/ZXPSignCMD/3.0.30/win32/ZXPSignCmd.exe" -o /home/xclient/zxpsign/bin/ZXPSignCmd.exe
 
 USER root
-COPY iscc.sh /scripts/
-RUN chmod +x /scripts/iscc.sh
+ADD docker-entrypoint.sh /scripts/
+RUN chmod a+x /scripts/docker-entrypoint.sh
+
+USER xclient
+RUN mkdir /home/xclient/zxpsign/src
+WORKDIR /home/xclient/zxpsign/src
+
+ENTRYPOINT ["/scripts/docker-entrypoint.sh"]
+
+
